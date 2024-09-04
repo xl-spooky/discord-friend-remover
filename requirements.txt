@@ -1,3 +1,4 @@
 discord.py-self
+discord.py
 requests
 art
