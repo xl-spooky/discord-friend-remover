@@ -10,7 +10,7 @@ from art import text2art
 start_time = time.time()
 bot = commands.Bot(command_prefix='!s ', self_bot=True)
 
-TOKEN: str = "YOUR_ACC_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
+TOKEN: str = "USE_YOUR_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
 API_BASE_URL: str = "https://discord.com/api/v9"
 
 headers: dict[str, str] = {
@@ -160,9 +160,17 @@ async def fact(ctx: commands.Context) -> None:
     await ctx.send(f'📚 Did you know? {fact}')
 
 @bot.command()
-async def scramble(ctx: commands.Context, *, word: str) -> None:
-    """Scrambles a word for the user to guess."""
+async def scramble(ctx: commands.Context) -> None:
+    """Starts a word scramble game with a random word fetched from an API."""
     await ctx.message.delete()
+    try:
+        response = requests.get('https://random-word-api.herokuapp.com/word')
+        response.raise_for_status()
+        word: str = response.json()[0]
+    except requests.RequestException:
+        await ctx.send("❌ Failed to fetch a word. Please try again later.")
+        return
+
     scrambled_word: str = ''.join(random.sample(word, len(word)))
     await ctx.send(f'🔀 Unscramble this word: **{scrambled_word}**')
 
@@ -171,8 +179,8 @@ async def scramble(ctx: commands.Context, *, word: str) -> None:
         return m.author == ctx.author and m.channel == ctx.channel
 
     try:
-        msg: Message = await bot.wait_for('message', check=check, timeout=30)  # Wait for 30 seconds for a response
-        if msg.content.lower() == word.lower():
+        msg: Message | None = await bot.wait_for('message', check=check, timeout=30)  # Wait for 30 seconds for a response
+        if msg and msg.content.lower() == word.lower():
             await ctx.send('🎉 Correct! Well done!')
         else:
             await ctx.send(f'❌ Sorry, the correct word was **{word}**.')
