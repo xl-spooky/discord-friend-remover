@@ -1,5 +1,5 @@
 from discord.ext import commands
-from discord import Message, Member
+from discord import Message, Member, DMChannel
 import requests
 import time
 from typing import Any
@@ -7,10 +7,11 @@ import random
 import asyncio
 from art import text2art
 
+
 start_time = time.time()
 bot = commands.Bot(command_prefix='!s ', self_bot=True)
 
-TOKEN: str = "USE_YOUR_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
+TOKEN: str = "USE_YOUR_ACCOUNT_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
 API_BASE_URL: str = "https://discord.com/api/v9"
 
 headers: dict[str, str] = {
@@ -23,6 +24,35 @@ DO_NOT_DELETE_IDS: list[int] = [
     404264989147529217,
     # Continue if there are more to exclude.
 ]
+
+def get_open_dms() -> list[dict[str, Any]]:
+    """Fetches the list of open direct message channels (both private and group DMs)."""
+    url: str = f"{API_BASE_URL}/users/@me/channels"
+    response: requests.Response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        dms: list[dict[str, Any]] = response.json()
+        return dms
+    else:
+        print("Failed to get DMs")
+        return []
+
+def close_dm(dm_id: str) -> None:
+    """Closes a DM by deleting the private channel."""
+    url: str = f"{API_BASE_URL}/channels/{dm_id}"
+    response: requests.Response = requests.delete(url, headers=headers)
+    if response.status_code == 200:
+        print(f"Successfully closed DM {dm_id}")
+    else:
+        print(f"Failed to close DM {dm_id}: {response.status_code}")
+
+def leave_group(dm_id: str) -> None:
+    """Leaves a group DM."""
+    url: str = f"{API_BASE_URL}/channels/{dm_id}"
+    response: requests.Response = requests.delete(url, headers=headers)
+    if response.status_code == 204:
+        print(f"Successfully left group {dm_id}")
+    else:
+        print(f"Failed to leave group {dm_id}: {response.status_code}")
 
 def get_friends() -> list[dict[str, Any]]:
     """Fetches the list of friends for the user account."""
@@ -68,6 +98,51 @@ async def remove(ctx: commands.Context) -> None:
             remove_friend(friend_id)
         except Exception as e:
             print(f"Couldn't remove: {friend['user']['username']}#{friend['user']['discriminator']} (ID: {friend_id}). Reason: {e}")
+
+@bot.command()
+async def closedm(ctx: commands.Context) -> None:
+    """Command to close all open DMs, leaving group DMs and closing private DMs."""
+    await ctx.message.delete()
+    dms: list[dict[str, Any]] = get_open_dms()
+
+    for dm in dms:
+        dm_id = dm.get('id')
+        if dm_id is None:
+            continue  # Skip if no DM ID
+
+        # Identify the type of DM
+        dm_type = dm.get('type')
+
+        if dm_type == 1:  # Type 1 means private DM
+            try:
+                print(f"Closing private DM with ID: {dm_id}")
+                close_dm(dm_id)
+            except Exception as e:
+                print(f"Couldn't close private DM with ID: {dm_id}. Reason: {e}")
+
+        elif dm_type == 3:  # Type 3 means group DM
+            try:
+                print(f"Leaving group DM with ID: {dm_id}")
+                leave_group(dm_id)
+            except Exception as e:
+                print(f"Couldn't leave group DM with ID: {dm_id}. Reason: {e}")
+
+@bot.command()
+async def cleandm(ctx: commands.Context) -> None:
+    """Deletes all bot messages in a DM channel."""
+    if not isinstance(ctx.channel, DMChannel):
+        print("❌ Command can only be used in a DM channel.")
+        return
+    try:
+        async for message in ctx.channel.history(limit=None): # Limit can be set (This will delete all messages)
+            try:
+                await message.delete()
+                print(f"Deleted message {message.id}")
+            except Exception as e:
+                print(f"Failed to delete message {message.id}: {e}")
+        print("🧹 DM cleaned successfully!")
+    except Exception as e:
+        print(f"Error cleaning DM: {e}")
 
 @bot.command()
 async def roll(ctx: commands.Context) -> None:
