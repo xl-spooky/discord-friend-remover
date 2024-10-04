@@ -1,5 +1,5 @@
 from discord.ext import commands
-from discord import Message, Member, DMChannel
+from discord import Message, Member, DMChannel, VoiceChannel
 import requests
 import time
 from typing import Any
@@ -11,8 +11,10 @@ from art import text2art
 start_time = time.time()
 bot = commands.Bot(command_prefix='!s ', self_bot=True)
 
-TOKEN: str = "USE_YOUR_ACCOUNT_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
+
+TOKEN: str = "USE_YOUR_ACC_TOKEN"  # Replace this with your user token (Note: Using a user token is against Discord's TOS)
 API_BASE_URL: str = "https://discord.com/api/v9"
+EMOJI_STR = "💀🔥"
 
 headers: dict[str, str] = {
     "Authorization": TOKEN,
@@ -24,6 +26,13 @@ DO_NOT_DELETE_IDS: list[int] = [
     404264989147529217,
     # Continue if there are more to exclude.
 ]
+
+# list of guild IDs where the bot should auto-react
+ALLOWED_GUILDS: list[int] = [
+    801571113531342889,
+    # Add more guild IDs as needed
+]
+
 
 def get_open_dms() -> list[dict[str, Any]]:
     """Fetches the list of open direct message channels (both private and group DMs)."""
@@ -80,6 +89,21 @@ async def on_ready() -> None:
         print(f'Logged in as {bot.user.name} ({bot.user.id})')
     else:
         print('Bot user is None, unable to retrieve name or ID.')
+
+@bot.event
+async def on_message(message: Message) -> None:
+    """
+    Automatically reacts to a message with emojis defined in EMOJI_STR
+    if the message is from one of the allowed guilds.
+    """
+    if isinstance(message.channel, DMChannel) or (message.guild and message.guild.id in ALLOWED_GUILDS):
+        try:
+            for emoji in EMOJI_STR:
+                await message.add_reaction(emoji)
+        except Exception as e:
+            print(f"Failed to add reaction: {e}")
+
+    await bot.process_commands(message)
 
 @bot.command()
 async def remove(ctx: commands.Context) -> None:
@@ -143,6 +167,32 @@ async def cleandm(ctx: commands.Context) -> None:
         print("🧹 DM cleaned successfully!")
     except Exception as e:
         print(f"Error cleaning DM: {e}")
+
+@bot.command()
+async def joinvc(ctx: commands.Context, channel: VoiceChannel) -> None:
+    """Joins the specified voice channel."""
+    if ctx.voice_client is not None:
+        await ctx.send("I'm already connected to a voice channel!")
+        return
+    
+    try:
+        await channel.connect()
+        await ctx.send(f"Connected to **@{channel.name}**!")
+    except Exception as e:
+        await ctx.send(f"Failed to connect to {channel.name}. Error: {e}")
+
+@bot.command()
+async def leavevc(ctx: commands.Context) -> None:
+    """Leaves the voice channel if the bot is in one."""
+    if ctx.voice_client is None:
+        await ctx.send("I'm not in a voice channel!")
+        return
+
+    try:
+        await ctx.voice_client.disconnect(force=True)
+        await ctx.send("Disconnected from the voice channel.")
+    except Exception as e:
+        await ctx.send(f"Failed to disconnect. Error: {e}")
 
 @bot.command()
 async def roll(ctx: commands.Context) -> None:
